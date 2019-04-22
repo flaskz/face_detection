@@ -28,7 +28,7 @@ def face_det(coordinates, img, pnet, rnet, onet, resize=True):
     factor = 0.709  # scale factor
 
     if resize:
-        resized_img, pct = img_resizing(img, 224)
+        resized_img, pct = img_resizing(img, 128)
 
         start = time.time()
         bbx, _ = detect_face(resized_img, minsize, pnet, rnet, onet, threshold, factor)
@@ -68,8 +68,50 @@ def draw_faces(img, bounding_boxes):
             print(e)
             continue
 
+def video_generate_boxes(path, pnet, rnet, onet):
+    cap = cv2.VideoCapture(path)
+    nf = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    boxes = []
+    # first frame
 
-def video_detection(path, pnet, rnet, onet):
+    for i in range(int(nf)):
+        ret, frame = cap.read()
+        bbx = []
+        cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_det(bbx, cvt_img, pnet, rnet, onet, resize=False)
+        boxes.append(bbx.copy())
+
+        with open('E:\\User\\frames.txt', 'w+') as f:
+            for faces in boxes:
+                for face in faces:
+                    for coord in face:
+                        f.write(str(coord)+',')
+                    f.write('\n')
+                f.write('-------\n')
+
+def preprocessed_play_video(path, bbxs):
+    cap = cv2.VideoCapture(path)
+    nf = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 1)
+    tmp = cap.get(cv2.CAP_PROP_POS_MSEC)
+    fps = round(nf / (tmp / 1000))
+    print(nf, tmp, fps)
+
+    cap = cv2.VideoCapture(path)
+
+    for i in range(int(nf)):
+        ret, frame = cap.read()
+        draw_faces(frame, bbxs[i])
+        cv2.imshow('frame', frame)
+
+        if cv2.waitKey(fps) & 0xFF == ord('q'):
+            break
+
+    # When everything done, release the capture
+    cap.release()
+    cv2.destroyAllWindows()
+
+def video_detection_real_time(path, pnet, rnet, onet):
     cap = cv2.VideoCapture(path)
     nf = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     cap.set(cv2.CAP_PROP_POS_AVI_RATIO,1)
@@ -94,7 +136,7 @@ def video_detection(path, pnet, rnet, onet):
             cvt_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             boxes = bbx.copy()
             bbx = []
-            thread = threading.Thread(target=face_det, args=(bbx, cvt_img, pnet, rnet, onet))
+            thread = threading.Thread(target=face_det, args=(bbx, cvt_img, pnet, rnet, onet, False))
             thread.start()
         # print(boxes)
 
@@ -114,7 +156,44 @@ def video_detection(path, pnet, rnet, onet):
 if __name__ == '__main__':
     pnet, rnet, onet = initiate_graph()
 
-    video_detection(path='/home/lucas/Vídeos/test.mp4', pnet=pnet, rnet=rnet, onet=onet)
+    # img = cv2.imread('E:\\User\\Imagem\\projetos\\lots\\for-the-people.jpeg', cv2.IMREAD_COLOR)
+    # cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # bbx = []
+    # face_det(bbx, cvt_img, pnet, rnet, onet, resize=False)
+    # draw_faces(img, bbx)
+    # cv2.imshow('test', img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    imgs = []
+    i = 0
+    faces = []
+    with open('E:\\User\\frames.txt', 'r') as f:
+        lines = f.readlines()
+        for i in range(len(lines)):
+            line = lines[i].strip()
+            # print(i)
+            if '---' not in line:
+                # line = line.strip()
+                face = []
+                # print(line)
+                [face.append(int(item.split('.')[0])) for item in line.split(',') if len(item) > 0]
+                faces.append(face)
+            else:
+                imgs.append(faces)
+                faces = []
+
+    preprocessed_play_video('E:\\User\\test_vine.mp4', imgs)
+    bbx = []
+    face_det(bbx, frame, pnet, rnet, onet, resize=True)
+
+    draw_faces(frame, imgs[0])
+
+    cv2.imshow('teste', frame)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    video_generate_boxes(path='E:\\User\\test_vine.mp4', pnet=pnet, rnet=rnet, onet=onet)
 
     # img = cv2.imread('/home/lucas/Imagens/people/alot/people-to-people.jpg', cv2.IMREAD_COLOR)
     # img = cv2.imread('/home/lucas/Imagens/people/c/pe.jpg', cv2.IMREAD_COLOR)
